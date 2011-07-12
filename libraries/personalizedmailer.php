@@ -98,12 +98,12 @@ class personalizedmailer {
 		if ($this->errorcheck($msgdata)) { return; }	
 		
 		// write message template to working directory
-		file_put_contents($this->config['pmdatadir'] . "personalizedmailertemplate.txt", $msgdata['msgtemplate'], LOCK_EX);
+		file_put_contents($this->config['pmdatadir'] . $_SERVER['SERVER_NAME'] . "-pmtemplate.txt", $msgdata['msgtemplate'], LOCK_EX);
 		// remove template from data structure
 		unset($msgdata['msgtemplate']);
 		
 		// set queue lockfile
-		file_put_contents($this->config['pmdatadir'] . "personalizedmailerqueue.run", "1", LOCK_EX);
+		file_put_contents($this->config['pmdatadir'] . $_SERVER['SERVER_NAME'] . "-pmqueue.run", "1", LOCK_EX);
 		
 		if (!isset($msgdata['ciemailconfig'])) {			
 			$msgdata['ciemailconfig'] = array();
@@ -121,40 +121,65 @@ class personalizedmailer {
 		}		
 
 		// write config/msgdata to working dir as JSON string
-		file_put_contents($this->config['pmdatadir'] . "personalizedmailerdata.txt", json_encode($msgdata), LOCK_EX);
+		file_put_contents($this->config['pmdatadir'] . $_SERVER['SERVER_NAME'] . "-pmdata.txt", json_encode($msgdata), LOCK_EX);
 	}
 	
 	function resetqueue() {
-		unlink($this->config['pmdatadir'] . "personalizedmailerstart.run");	
-		unlink($this->config['pmdatadir'] . "personalizedmailerstatus.tmp");
-		unlink($this->config['pmdatadir'] . "personalizedmailerqueue.run");		
+		unlink($this->config['pmdatadir'] . $this->config['domain'] . "-pmstart.run");	
+		unlink($this->config['pmdatadir'] . $this->config['domain'] . "-pmstatus.tmp");
+		unlink($this->config['pmdatadir'] . $this->config['domain'] . "-pmqueue.run");		
 	}
 	
 	function queueset() {
-		if (file_exists($this->config['pmdatadir'] . "personalizedmailerqueue.run")) {
+		if (file_exists($this->config['pmdatadir'] . $this->config['domain'] . "-pmqueue.run")) {
 			return true;
 		}
 		return false;
 	}
 	
 	function queuestarted() {
-		if (file_exists($this->config['pmdatadir'] . "personalizedmailerstart.run")) {
+		if (file_exists($this->config['pmdatadir'] . $this->config['domain'] . "-pmstart.run")) {
 			return true;
 		}
 		return false;
 	}
 	
 	function sendtolist() {
+		global $argv;
+		if (!in_array('--domain', $argv)) {
+			echo "USAGE:\n\n";
+			echo "--domain (required): domain name mail is being sent from\n";
+			echo "--silent (optional): suppress PHP warnings and verbose output\n\n";
+			exit;
+		}
+		
+		$clioptions = array();
+		if (in_array('--silent', $argv)) {
+			$clioptions['silent'] = true;	
+			$this->config['silent'] = $clioptions['silent'];					
+		}
+	
+		// find domain in arguments
+		for ($x=0; $x < count($argv); $x++) {
+			if ($argv[$x] == "--domain") {
+				$nextidx = $x+1;
+				$clioptions['domain'] = $argv[$nextidx];
+				break;
+			}
+		}		
+		// add to config
+		$this->config['domain'] = $clioptions['domain'];
+	
 		if (!$this->queueset()) {
 			if (!isset($this->config['silent'])) {
 				print "ERROR: personalized message lib has not queued a message for delivery, please init a queue\n";				
 			}			
-			return true;
+			exit;
 		}
 		
 		// retrieve msgdata/config from working dir
-		$msgdata = json_decode(file_get_contents($this->config['pmdatadir'] . "personalizedmailerdata.txt"));
-		$msgtemplate = file_get_contents($this->config['pmdatadir'] . "personalizedmailertemplate.txt");
+		$msgdata = json_decode(file_get_contents($this->config['pmdatadir'] . $this->config['domain'] . "-pmdata.txt"));
+		$msgtemplate = file_get_contents($this->config['pmdatadir'] . $this->config['domain'] . "-pmtemplate.txt");
 		
 		$totaladdr = count($msgdata->addresses);
 
@@ -162,7 +187,7 @@ class personalizedmailer {
 		$this->CI->email->initialize($msgdata->ciemailconfig);
 			
 		// set tmp file to indicate processing has started		
-		file_put_contents($this->config['pmdatadir'] . "personalizedmailerstart.run", "1", LOCK_EX);
+		file_put_contents($this->config['pmdatadir'] . $this->config['domain'] . "-pmstart.run", "1", LOCK_EX);
 		
 		// init status array	
 		$status = array(
@@ -182,7 +207,7 @@ class personalizedmailer {
 			$status['lastaddr'] = $thisaddress;
 			$status['messagenum'] = $x;
 			$status['progress'] = round(($x / $totaladdr) * 100);
-			file_put_contents($this->config['pmdatadir'] . "personalizedmailerstatus.tmp", json_encode($status), LOCK_EX);
+			file_put_contents($this->config['pmdatadir'] . $this->config['domain'] . "-pmstatus.tmp", json_encode($status), LOCK_EX);
 			
 			// process variables
 			$thismessage = $msgtemplate;
@@ -220,31 +245,5 @@ class personalizedmailer {
 	}
 }
 
-if (isset($argv)) {
-	// command line usage, instantiate library
-	
-	// load CI
-	$clioptions = getopt(null, array('pmdatadir:', 'ciroot::', 'silent::'));
-	if (!$clioptions || !$clioptions['pmdatadir']) {
-		echo "USAGE:\n\n";
-		echo "--pmdatadir (required): path to working directory containing queued data [note: this directory should be secured with proper file permissions to prevent unwanted viewing]\n";
-		echo "--ciroot    (optional): full path to CodeIgniter root file [default: '../../../../index.php']\n\n";
-		exit;
-	}
-	
-	if ($clioptions['ciroot']) {
-		include $clioptions['ciroot'];
-	}
-	else {
-		include '../../../../index.php';
-	}
-	$CI =& get_instance();
-	$CI->load->library('email');
-	
-	$clioptions['cli'] = true;
-	
-	$pm = new personalizedmailer($clioptions);	
-	$pm->sendtolist();
-}
 
 ?>
