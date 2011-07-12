@@ -94,16 +94,16 @@ class personalizedmailer {
 		return false;	
 	}
 	
-	function initqueue($msgdata = array()) {	
+	function initqueue($msgdata = array()) {		
 		if ($this->errorcheck($msgdata)) { return; }	
 		
 		// write message template to working directory
-		file_put_contents($this->config['pmdatadir'] . $_SERVER['SERVER_NAME'] . "-pmtemplate.txt", $msgdata['msgtemplate'], LOCK_EX);
+		file_put_contents($this->config['pmdatadir'] . $this->config['domain'] . "-pmtemplate.txt", $msgdata['msgtemplate'], LOCK_EX);
 		// remove template from data structure
 		unset($msgdata['msgtemplate']);
 		
 		// set queue lockfile
-		file_put_contents($this->config['pmdatadir'] . $_SERVER['SERVER_NAME'] . "-pmqueue.run", "1", LOCK_EX);
+		file_put_contents($this->config['pmdatadir'] . $this->config['domain'] . "-pmqueue.run", "1", LOCK_EX);
 		
 		if (!isset($msgdata['ciemailconfig'])) {			
 			$msgdata['ciemailconfig'] = array();
@@ -121,7 +121,7 @@ class personalizedmailer {
 		}		
 
 		// write config/msgdata to working dir as JSON string
-		file_put_contents($this->config['pmdatadir'] . $_SERVER['SERVER_NAME'] . "-pmdata.txt", json_encode($msgdata), LOCK_EX);
+		file_put_contents($this->config['pmdatadir'] . $this->config['domain'] . "-pmdata.txt", json_encode($msgdata), LOCK_EX);
 	}
 	
 	function resetqueue() {
@@ -146,29 +146,10 @@ class personalizedmailer {
 	
 	function sendtolist() {
 		global $argv;
-		if (!in_array('--domain', $argv)) {
-			echo "USAGE:\n\n";
-			echo "--domain (required): domain name mail is being sent from\n";
-			echo "--silent (optional): suppress PHP warnings and verbose output\n\n";
-			exit;
-		}
-		
 		$clioptions = array();
-		if (in_array('--silent', $argv)) {
-			$clioptions['silent'] = true;	
+		if (in_array('--silent', $argv)) {	
 			$this->config['silent'] = $clioptions['silent'];					
 		}
-	
-		// find domain in arguments
-		for ($x=0; $x < count($argv); $x++) {
-			if ($argv[$x] == "--domain") {
-				$nextidx = $x+1;
-				$clioptions['domain'] = $argv[$nextidx];
-				break;
-			}
-		}		
-		// add to config
-		$this->config['domain'] = $clioptions['domain'];
 	
 		if (!$this->queueset()) {
 			if (!isset($this->config['silent'])) {
