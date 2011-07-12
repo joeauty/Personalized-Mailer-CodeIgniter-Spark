@@ -5,68 +5,84 @@ class personalizedmailer {
 	private $config;
 	
 	function __construct($config = array()) {
-		$this->CI =& get_instance();
-				
-		if (!isset($config['ciemailconfig'])) {			
-			$config['ciemailconfig'] = array();
+		$this->CI =& get_instance();	
+		
+		if (!count($config)) {
+			if (isset($config['cli'])) {
+				echo "ERROR: missing personalized message lib data/config\n";
+			}
+			else {
+				show_error('ERROR: missing personalized message lib data/config');				
+			}
+			return true;
 		}		
-		
-		// set some defaults
-		if (!isset($config['loopdelay'])) {
-			$config['loopdelay'] = 1;
-			//$config['loopdelay'] = 60;
-		}
-		if (!isset($config['ciroot'])) {
-			$config['ciroot'] = '../../../../..';
-		}
-		
-		// expose config to rest of class
-		$this->config = $config;		
-	}
-	
-	function errorcheck($msgdata) {
-		if (!count($msgdata)) {
-			show_error('ERROR: missing personalized message lib data/config');
+		else if (!isset($config['pmdatadir']) || !is_dir($config['pmdatadir'])) {
+			if (isset($config['cli'])) {
+				echo "ERROR: missing personalized message lib working directory for staging mailings\n";
+			}
+			else {
+				show_error('ERROR: missing personalized message lib working directory for staging mailings');				
+			}		
 			return true;
 		}
-		else if (!isset($msgdata['addresses'])) {
+		else if (!is_writable($config['pmdatadir'])) {
+			if (isset($config['cli'])) {
+				echo "ERROR: personalized message lib working directory does not have writable permissions assigned to this user\n";
+			}
+			else {
+				show_error('ERROR: personalized message lib working directory does not have writable permissions assigned to it for the web server user');				
+			}			
+			return true;
+		}
+			
+		// add trailing slash to pmdatadir, if necessary
+		if (!preg_match('/\/$/', $config['pmdatadir'])) {
+			$config['pmdatadir'] .= "/";
+		}
+		
+		// expose to other classes
+		$this->config = $config;
+	}
+	
+	function errorcheck($config) {
+		if (!count($config)) {
+			show_error('ERROR: missing personalized message lib data/config');
+			return true;
+		}		
+		else if (!isset($config['addresses'])) {
 			show_error('ERROR: missing personalized message lib address list');
 			return true;
 		}
-		else if (!isset($msgdata['msgtemplate'])) {
+		else if (!isset($config['msgtemplate'])) {
 			show_error('ERROR: missing personalized message lib message template');
 			return true;
 		}
-		else if (!isset($msgdata['subject'])) {
+		else if (!isset($config['subject'])) {
 			show_error('ERROR: missing personalized message lib message subject');
 			return true;
 		}
-		else if (!isset($msgdata['fromaddr'])) {
+		else if (!isset($config['fromaddr'])) {
 			show_error('ERROR: missing personalized message lib message from address');
 			return true;
-		}	
-		else if (!is_writable(sys_get_temp_dir())) {
-			show_error('ERROR: tmp path is not writable, required for personalized message lib');
+		}				
+		else if ($this->queuestarted()) {
+			show_error('ERROR: personalized message lib is in the process of sending messages. Please wait until your messages have been sent');
 			return true;
 		}
-		else if ($this->queueset()) {
-			show_error('ERROR: personalized message lib has already queued a message for delivery, please try again once your message has been sent');
-			return true;
-		}
-		else if (isset($msgdata['varsearch']) || isset($msgdata['varreplace'])) {
-			if (!isset($msgdata['varsearch'])) {
+		else if (isset($config['varsearch']) || isset($config['varreplace'])) {
+			if (!isset($config['varsearch'])) {
 				show_error('ERROR: missing personalized message lib search string(s)');
 				return true;
 			}
-			else if (!isset($msgdata['varreplace'])) {
+			else if (!isset($config['varreplace'])) {
 				show_error('ERROR: missing personalized message lib variable replacement string(s)');
 				return true;
 			}					
 
 			// make sure that there aren't missing variable substitutions
-			for ($y=0; $y < count($msgdata['varsearch']); $y++) {	
-				$thisreplacementarr = $msgdata['varreplace'][$y];							
-				if (count($thisreplacementarr) !== count($msgdata['addresses'])) {
+			for ($y=0; $y < count($config['varsearch']); $y++) {	
+				$thisreplacementarr = $config['varreplace'][$y];							
+				if (count($thisreplacementarr) !== count($config['addresses'])) {
 					show_error('ERROR: the number of personalized message lib variable substitutions does not match the number of addresses being mailed to');
 					return true;
 				}
@@ -78,75 +94,157 @@ class personalizedmailer {
 		return false;	
 	}
 	
-	function initqueue() {
-		$handle = fopen(sys_get_temp_dir() . "personalizedmailerqueue.run", "w");
-		fwrite($handle, "1");
+	function initqueue($msgdata = array()) {	
+		if ($this->errorcheck($msgdata)) { return; }	
+		
+		// write message template to working directory
+		file_put_contents($this->config['pmdatadir'] . "personalizedmailertemplate.txt", $msgdata['msgtemplate'], LOCK_EX);
+		// remove template from data structure
+		unset($msgdata['msgtemplate']);
+		
+		// set queue lockfile
+		file_put_contents($this->config['pmdatadir'] . "personalizedmailerqueue.run", "1", LOCK_EX);
+		
+		if (!isset($msgdata['ciemailconfig'])) {			
+			$msgdata['ciemailconfig'] = array();
+		}		
+
+		// set some defaults
+		if (!isset($msgdata['loopdelay'])) {
+			$msgdata['loopdelay'] = 1;
+			//$config['loopdelay'] = 60;
+		}
+	
+		// set HTML option
+		if ($msgdata['HTML']) {
+			$msgdata['ciemailconfig']['mailtype'] = "html";
+		}		
+
+		// write config/msgdata to working dir as JSON string
+		file_put_contents($this->config['pmdatadir'] . "personalizedmailerdata.txt", json_encode($msgdata), LOCK_EX);
 	}
 	
 	function resetqueue() {
-		unlink(sys_get_temp_dir() . "personalizedmailerstart.run");		
-	//	unlink(sys_get_temp_dir() . "personalizedmailerqueue.run");		
+		unlink($this->config['pmdatadir'] . "personalizedmailerstart.run");	
+		unlink($this->config['pmdatadir'] . "personalizedmailerstatus.tmp");
+		unlink($this->config['pmdatadir'] . "personalizedmailerqueue.run");		
 	}
 	
 	function queueset() {
-		if (file_exists(sys_get_temp_dir() . "personalizedmailerqueue.run")) {
+		if (file_exists($this->config['pmdatadir'] . "personalizedmailerqueue.run")) {
 			return true;
 		}
 		return false;
 	}
 	
-	function sendtolist($msgdata = array()) {
-		if ($this->errorcheck($msgdata)) { return; }
-	
-		if ($msgdata['HTML']) {
-			$this->config['ciemailconfig']['mailtype'] = "html";
+	function queuestarted() {
+		if (file_exists($this->config['pmdatadir'] . "personalizedmailerstart.run")) {
+			return true;
 		}
+		return false;
+	}
+	
+	function sendtolist() {
+		if (!$this->queueset()) {
+			if (!isset($this->config['silent'])) {
+				print "ERROR: personalized message lib has not queued a message for delivery, please init a queue\n";				
+			}			
+			return true;
+		}
+		
+		// retrieve msgdata/config from working dir
+		$msgdata = json_decode(file_get_contents($this->config['pmdatadir'] . "personalizedmailerdata.txt"));
+		$msgtemplate = file_get_contents($this->config['pmdatadir'] . "personalizedmailertemplate.txt");
+		
+		$totaladdr = count($msgdata->addresses);
 
 		// init CI email class
-		$this->CI->email->initialize($this->config['ciemailconfig']);
+		$this->CI->email->initialize($msgdata->ciemailconfig);
 			
-		// set tmp file to indicate processing has started
-		$handle = fopen(sys_get_temp_dir() . "personalizedmailerstart.run", "w");
-		fwrite($handle, "1");
+		// set tmp file to indicate processing has started		
+		file_put_contents($this->config['pmdatadir'] . "personalizedmailerstart.run", "1", LOCK_EX);
+		
+		// init status array	
+		$status = array(
+			'total' => $totaladdr
+		);
 		
 		// start loop
-		for ($x=0; $x < count($msgdata['addresses']); $x++) {
+		for ($x=0; $x < count($msgdata->addresses); $x++) {
+			if (!isset($this->config['silent'])) {
+				echo $msgdata->addresses[$x] . "\n";				
+			}
+			
 			$this->CI->email->clear();						
+			$thisaddress = $msgdata->addresses[$x];
+			
+			// update status		
+			$status['lastaddr'] = $thisaddress;
+			$status['messagenum'] = $x;
+			$status['progress'] = round(($x / $totaladdr) * 100);
+			file_put_contents($this->config['pmdatadir'] . "personalizedmailerstatus.tmp", json_encode($status), LOCK_EX);
 			
 			// process variables
-			$thismessage = $msgdata['msgtemplate'];
-			if (isset($msgdata['varsearch'])) {
+			$thismessage = $msgtemplate;
+			if (isset($msgdata->varsearch)) {
 				// iterate through each variable											
-				for ($y=0; $y < count($msgdata['varsearch']); $y++) {
-					$thisreplacementarr = $msgdata['varreplace'][$y];
+				for ($y=0; $y < count($msgdata->varsearch); $y++) {
+					$thisreplacementarr = $msgdata->varreplace[$y];
 					$thisreplacement = $thisreplacementarr[$x];
 									
-					$thismessage = str_replace($msgdata['varsearch'][$y], $thisreplacement, $thismessage);	
+					$thismessage = str_replace($msgdata->varsearch[$y], $thisreplacement, $thismessage);	
 				}			
 			}
 			
-			$this->CI->email->to($msgdata['addresses'][$x]);
-			if (isset($msgdata['fromname'])) {
-				$this->CI->email->from($msgdata['fromaddr'], $msgdata['fromname']);				
+			$this->CI->email->to($thisaddress);
+			if (isset($msgdata->fromname)) {
+				$this->CI->email->from($msgdata->fromaddr, $msgdata->fromname);				
 			}
 			else {
-				$this->CI->email->from($msgdata['fromaddr']);				
+				$this->CI->email->from($msgdata->fromaddr);				
 			}
-			if (isset($msgdata['replytoname']) && isset($msgdata['replytoaddr'])) {
-				$this->CI->email->reply_to($msgdata['replytoaddr'], $msgdata['replytoname']);				
+			if (isset($msgdata->replytoname) && isset($msgdata->replytoaddr)) {
+				$this->CI->email->reply_to($msgdata->replytoaddr, $msgdata->replytoname);				
 			}
-			else if (isset($msgdata['replytoaddr'])) {
-				$this->CI->email->reply_to($msgdata['replytoaddr']);				
+			else if (isset($msgdata->replytoaddr)) {
+				$this->CI->email->reply_to($msgdata->replytoaddr);				
 			}
-			$this->CI->email->subject($msgdata['subject']);
+			$this->CI->email->subject($msgdata->subject);
 			$this->CI->email->message($thismessage);
 			$this->CI->email->send();
 
-			sleep($this->config['loopdelay']);			
+			sleep($msgdata->loopdelay);			
 		}
 
 		$this->resetqueue();
 	}
+}
+
+if (isset($argv)) {
+	// command line usage, instantiate library
+	
+	// load CI
+	$clioptions = getopt(null, array('pmdatadir:', 'ciroot::', 'silent::'));
+	if (!$clioptions || !$clioptions['pmdatadir']) {
+		echo "USAGE:\n\n";
+		echo "--pmdatadir (required): path to working directory containing queued data [note: this directory should be secured with proper file permissions to prevent unwanted viewing]\n";
+		echo "--ciroot    (optional): full path to CodeIgniter root file [default: '../../../../index.php']\n\n";
+		exit;
+	}
+	
+	if ($clioptions['ciroot']) {
+		include $clioptions['ciroot'];
+	}
+	else {
+		include '../../../../index.php';
+	}
+	$CI =& get_instance();
+	$CI->load->library('email');
+	
+	$clioptions['cli'] = true;
+	
+	$pm = new personalizedmailer($clioptions);	
+	$pm->sendtolist();
 }
 
 ?>
