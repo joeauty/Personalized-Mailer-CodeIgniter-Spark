@@ -66,8 +66,13 @@ class personalizedmailer {
 		else if (!isset($config['fromaddr'])) {
 			show_error('ERROR: missing personalized message lib message from address');
 			return true;
-		}				
+		}		
+		else if ($this->queueset()) {
+			show_error('ERROR: personalized message lib has already queued a message for delivery. Please wait until your messages have been sent');
+		}		
 		else if ($this->queuestarted()) {
+			// this error handling shouldn't be necessary, GUI should hide submit button
+			// when $this->queueset(), but just in case...
 			show_error('ERROR: personalized message lib is in the process of sending messages. Please wait until your messages have been sent');
 			return true;
 		}
