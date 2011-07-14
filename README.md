@@ -1,6 +1,8 @@
 Personalized Mailer
 ===================
 
+Personalized Mailer is a mass emailing CodeIgniter Spark with support for generating personalized messages to each user in your list. This Spark is designed to send to high volume lists, with support for proper SMTP server friendly throttling...
+
 Features
 --------
 
@@ -44,6 +46,20 @@ Initialize a queue:
 *$addresses* can be pulled from a database, flat file, or provided to this function as a hard-coded array - this is up to you. The same applies for *$msgtemplate* - this is your basic message template plain text or HTML. *$loopdelay* should be set to an appropriate value (in seconds) to delay each loop iteration, creating an appropriate throttle. If you set this value to 0 you are going to spit out messages as fast as your server can handle, which SMTP server operators generally do not appreciate. Even if your SMTP server is capable at processing messages at this rate, the receiving server may not be able to and may black/blocklist your server as a consequence. 
 
 *$varsearch* and *$varreplace* are used as search and replace lists to find variables in your template and replace them with appropriate values. The *$varsearch* list is a simple listing of the variables to search for, and the *$varreplace* arrays are respective listings of the replacements for these variables. **There should be the same number of variable replacements as there are addresses in your list**. If there aren't, an error message will be generated preventing your queue from being initialized.
+
+Other Possible Initialization Variables
+---------------------------------------
+
+The above initqueue() function also supports all email preferences supported by the CodeIgniter email class (see [Email Preferences](http://codeigniter.com/user_guide/libraries/email.html)). To provide these configuration arguments, simply pass them on in your initqueue() call with key *ciemailconfig*. For example:
+
+	$this->personalizedmailer->initqueue(array(
+		'addresses' => $addresses,
+		[snipped]...
+		'ciemailconfig' => array(
+			'smtp_port' => 587,
+			'useragent' => 'My Company Mailer'
+		)
+	));
 
 Example usage of variable replacements
 --------------------------------------
@@ -148,3 +164,15 @@ where *admin* is the name of your controller and *sendtolist* is the function in
 
 	php /path/to/your/codeigniter/root/index.php admin sendtolist --silent
 	
+AJAX Progress Bars/Status
+-------------------------
+
+With the *pmcheck* function configured, above, your AJAX calls to this URL will return a JSON string which you can parse with any JSON parser. The resulting properties in this JSON object will include:
+
+- *total*: total number of messages in the list
+- *queueset*: set to 1 if the queue has been set
+- *lastaddr*: the last email address sent to at the time of this AJAX call
+- *messagenum*: the message number
+- *progress*: the progress expressed as a percentage
+
+You can combine the *messagenum* and *total* variables into a string to generate your own outputs such as "processed 3845 of 12042"
