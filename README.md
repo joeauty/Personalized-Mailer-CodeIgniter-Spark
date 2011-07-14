@@ -21,7 +21,7 @@ Installation of the Web-based Interface
 
 The web-based interface is used for initializing queues containing all of the necessary details about the job that are picked up on the command line. To establish a queue:
 
-	$this->load->spark('personalizedmailer/1.0.0');
+	$this->load->spark('PersonalizedMailer/1.0.0');
 	$this->load->library('personalizedmailer', array(
 		'pmdatadir' => '/path/to/working/dir',
 		'domain' => 'sometoken'
