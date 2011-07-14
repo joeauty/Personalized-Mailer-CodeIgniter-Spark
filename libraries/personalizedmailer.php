@@ -129,6 +129,11 @@ class personalizedmailer {
 
 		// write config/msgdata to working dir as JSON string
 		file_put_contents($this->config['pmdatadir'] . $this->config['domain'] . "-pmdata.txt", json_encode($msgdata), LOCK_EX);
+		
+		// write inital status
+		$status = array();
+		$status['queueset'] = 1;		
+		file_put_contents($this->config['pmdatadir'] . $this->config['domain'] . "-pmstatus.tmp", json_encode($status), LOCK_EX);
 	}
 	
 	function resetqueue() {
@@ -191,7 +196,8 @@ class personalizedmailer {
 			$this->CI->email->clear();						
 			$thisaddress = $msgdata->addresses[$x];
 			
-			// update status		
+			// update status
+			$status['queueset'] = 1;
 			$status['lastaddr'] = $thisaddress;
 			$status['messagenum'] = $x;
 			$status['progress'] = round(($x / $totaladdr) * 100);
@@ -230,6 +236,12 @@ class personalizedmailer {
 		}
 
 		$this->resetqueue();
+	}
+	
+	function getstatus() {
+		if (file_exists($this->config['pmdatadir'] . $this->config['domain'] . "-pmstatus.tmp")) {
+			return file_get_contents($this->config['pmdatadir'] . $this->config['domain'] . "-pmstatus.tmp");			
+		}
 	}
 }
 
