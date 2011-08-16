@@ -1,5 +1,4 @@
 <?php
-
 class personalizedmailer {
 	private $CI;
 	private $config;
@@ -14,7 +13,7 @@ class personalizedmailer {
 		
 		if (!count($config)) {
 			if (isset($config['cli'])) {
-				echo "ERROR: missing personalized message lib data/config\n";
+				exit("ERROR: missing personalized message lib data/config\n");
 			}
 			else {
 				show_error('ERROR: missing personalized message lib data/config');				
@@ -22,15 +21,16 @@ class personalizedmailer {
 		}		
 		else if (!isset($config['pmdatadir']) || !is_dir($config['pmdatadir'])) {
 			if (isset($config['cli'])) {
-				echo "ERROR: missing personalized message lib working directory for staging mailings\n";
+				exit("ERROR: missing personalized message lib working directory for staging mailings\n");
 			}
 			else {
 				show_error('ERROR: missing personalized message lib working directory for staging mailings');				
-			}		
+			}
+			exit;		
 		}
 		else if (!is_writable($config['pmdatadir'])) {			
 			if (isset($config['cli'])) {
-				echo "ERROR: personalized message lib working directory does not have writable permissions assigned to this user\n";
+				exit("ERROR: personalized message lib working directory does not have writable permissions assigned to this user\n");
 			}
 			else {
 				show_error('ERROR: personalized message lib working directory does not have writable permissions assigned to it for the web server user');				
