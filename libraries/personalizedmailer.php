@@ -1,4 +1,5 @@
 <?php
+
 class personalizedmailer {
 	private $CI;
 	private $config;
@@ -13,15 +14,16 @@ class personalizedmailer {
 		
 		if (!count($config)) {
 			if (isset($config['cli'])) {
-				exit("ERROR: missing personalized message lib data/config\n");
+				echo "ERROR: missing personalized message lib data/config\n";
 			}
 			else {
 				show_error('ERROR: missing personalized message lib data/config');				
 			}
+			exit;
 		}		
 		else if (!isset($config['pmdatadir']) || !is_dir($config['pmdatadir'])) {
 			if (isset($config['cli'])) {
-				exit("ERROR: missing personalized message lib working directory for staging mailings\n");
+				echo "ERROR: missing personalized message lib working directory for staging mailings\n";
 			}
 			else {
 				show_error('ERROR: missing personalized message lib working directory for staging mailings');				
@@ -30,11 +32,12 @@ class personalizedmailer {
 		}
 		else if (!is_writable($config['pmdatadir'])) {			
 			if (isset($config['cli'])) {
-				exit("ERROR: personalized message lib working directory does not have writable permissions assigned to this user\n");
+				echo "ERROR: personalized message lib working directory does not have writable permissions assigned to this user\n";
 			}
 			else {
 				show_error('ERROR: personalized message lib working directory does not have writable permissions assigned to it for the web server user');				
 			}			
+			exit;
 		}
 			
 		// add trailing slash to pmdatadir, if necessary
@@ -188,7 +191,7 @@ class personalizedmailer {
 		);
 		
 		// start loop
-		for ($x=0; $x < count($msgdata->addresses); $x++) {
+		for ($x=0; $x < $totaladdr; $x++) {
 			if (!isset($this->config['silent'])) {
 				echo $msgdata->addresses[$x] . "\n";				
 			}
@@ -236,6 +239,51 @@ class personalizedmailer {
 		}
 
 		$this->resetqueue();
+	}
+	
+	function sendtolisttest($cli = false, $limit = false) {
+		$cli ? $br = "\n" : $br = "<br/>";
+		
+		if (!$this->queueset()) {
+			if (!isset($this->config['silent'])) {
+				print "ERROR: personalized message lib has not queued a message for delivery, please init a queue\n";				
+			}			
+			exit;
+		}
+
+		// retrieve msgdata/config from working dir
+		$msgdata = json_decode(file_get_contents($this->config['pmdatadir'] . $this->config['domain'] . "-pmdata.txt"));
+		$msgtemplate = file_get_contents($this->config['pmdatadir'] . $this->config['domain'] . "-pmtemplate.txt");
+
+		$limit ? $totaladdr = $limit : $totaladdr = count($msgdata->addresses);
+	
+		// start loop
+		for ($x=0; $x < $totaladdr; $x++) {				
+			$thisaddress = $msgdata->addresses[$x];
+
+			// process variables
+			$cli ? $thismessage = $msgtemplate : $thismessage = nl2br($msgtemplate);
+			if (isset($msgdata->varsearch)) {
+				// iterate through each variable											
+				for ($y=0; $y < count($msgdata->varsearch); $y++) {
+					$thisreplacementarr = $msgdata->varreplace[$y];
+					$thisreplacement = $thisreplacementarr[$x];
+
+					$thismessage = str_replace($msgdata->varsearch[$y], $thisreplacement, $thismessage);	
+				}			
+			}
+			
+			echo "To: " . $thisaddress . $br;
+			echo "From: " . $msgdata->fromaddr . $br;
+			if (isset($msgdata->replytoname) && isset($msgdata->replytoaddr)) {
+				echo "Reply to: " .  $msgdata->replytoname . " <" . $msgdata->replytoaddr . ">" . $br;				
+			}
+			else if (isset($msgdata->replytoaddr)) {
+				echo "Reply to: " . $msgdata->replytoaddr . $br;				
+			}
+			echo "Subject: " . $msgdata->subject . $br;
+			echo "Message: " . $br . $br . $thismessage . $br . $br;
+		}
 	}
 	
 	function getstatus() {

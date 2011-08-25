@@ -142,6 +142,8 @@ In order to process your queues you will need to create a function in a controll
 	
 (you will need to have loaded your Spark using the *$this->load->spark* and *$this->load->library* commands provided in the *Installation of the Web-based Interface* section, above)
 
+If you wish to see the output of some of your queued messages without actually sending any mail or flushing/resetting your queue you can view some of these messages either within a web browser or via the command line by invoking the *sendtolisttest()* function *$this->personalizedmailer->sendtolisttest($cli, $limit)*. This function accepts two arguments, the first a boolean variable indicating whether output should be displayed in the command line (where newlines are rendered as \n) - setting this to false renders newlines as HTML break tags, and the second argument indicates how many queued messages should be displayed. If the second argument is omitted all messages will be displayed.
+
 If you wish to fetch the status of your mail sending job useful for generating progress bars by making AJAX calls via a Javascript *setInterval* command, create the following function in this same controller:
 
  	public function pmcheck() {
@@ -176,3 +178,10 @@ With the *pmcheck* function configured, above, your AJAX calls to this URL will 
 - *progress*: the progress expressed as a percentage
 
 You can combine the *messagenum* and *total* variables into a string to generate your own outputs such as "processed 3845 of 12042"
+
+ChangeLog
+---------
+
+1.0.2
+
+- added sendtolisttest() function for showing the message contents of each personalized message that has been queued without actually sending mail or flushing the queue
