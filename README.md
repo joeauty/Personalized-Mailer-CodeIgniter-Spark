@@ -185,3 +185,7 @@ ChangeLog
 1.0.2
 
 - added sendtolisttest() function for showing the message contents of each personalized message that has been queued without actually sending mail or flushing the queue
+
+1.0.3
+
+- bumped CI compatability to 2.0.3, added hr tag to sendtolisttest for greater readability

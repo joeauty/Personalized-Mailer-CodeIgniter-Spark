@@ -283,6 +283,7 @@ class personalizedmailer {
 			}
 			echo "Subject: " . $msgdata->subject . $br;
 			echo "Message: " . $br . $br . $thismessage . $br . $br;
+			if (!$cli) { echo "<hr/>"; }			
 		}
 	}
 	
